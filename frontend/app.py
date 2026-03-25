@@ -1,6 +1,9 @@
 import streamlit as st
 import os
 
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 # 🔥 backend logic imports
 from backend.retriever import retrieve
 from backend.llm import extract_filters, generate_answer
