@@ -1,2 +1,6 @@
 streamlit
-requests
+psycopg2-binary
+chromadb
+sentence-transformers
+groq
+python-dotenv
