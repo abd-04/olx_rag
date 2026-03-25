@@ -2,8 +2,8 @@ import streamlit as st
 import os
 
 # 🔥 backend logic imports
-from retriever import retrieve
-from llm import extract_filters, generate_answer
+from backend.retriever import retrieve
+from backend.llm import extract_filters, generate_answer
 
 # ── PAGE CONFIG ────────────────────────────────────────────────
 st.set_page_config(
