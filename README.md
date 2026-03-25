@@ -1,4 +1,4 @@
-# OLX Vehicle Finder 🚗
+# OLX Vehicle Finder 
 
 A RAG-powered assistant for searching used cars and bikes on OLX Pakistan.
 Ask questions in plain English or Roman Urdu and get intelligent answers
@@ -47,7 +47,7 @@ English and Roman Urdu.
 
 | Layer | Technology |
 |---|---|
-| Scraping | Selenium + BeautifulSoup |
+| Scraping | Selenium  |
 | Structured DB | PostgreSQL |
 | Vector DB | ChromaDB |
 | Embeddings | sentence-transformers |
@@ -82,76 +82,228 @@ olx-rag-app/
 
 ---
 
-## How to run locally
-
-### Prerequisites
-- Docker Desktop installed and running
-- Groq API key (free at console.groq.com)
-
-### 1. Clone the repo
-```bash
-git clone https://github.com/[YOUR_USERNAME]/olx-rag-app.git
-cd olx-rag-app
-```
-
-### 2. Set up environment variables
-
-Create a `.env` file in the project root:
-```
-GROQ_API_KEY=your_groq_key_here
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=yourpassword
-POSTGRES_DB=olxdb
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
-```
-
-### 3. Start all services
-```bash
-docker compose up --build
-```
-
-### 4. Load data into the database
-
-In a new terminal:
-```bash
-cd scraper
-pip install -r requirements.txt
-python loader.py
-```
-
-### 5. Open the app
-```
-http://localhost:8501
-```
+Here’s a clean continuation of your README, keeping your tone but making it clearer, more structured, and natural to read. You can copy-paste this directly:
 
 ---
 
-## Data Pipeline
-```
-scraper_v2.py   →   raw_listings.json
-cleaner.py      →   clean_listings.json
-loader.py       →   PostgreSQL + ChromaDB
-```
+## What each file does:
 
-Scraped [X] listings from OLX Pakistan (cars and bikes).
-After cleaning [X] listings were retained.
-Each listing's title + description is embedded and stored
-in ChromaDB for semantic search.
+The project is split into a few stages: scraping → cleaning → loading → retrieval → answering.
 
----
+### Scraping (`scraper_v2.py`, `scraper_v3.py`)
 
-## Live Demo
+I started by collecting data directly from OLX.
 
-[Add your Railway/Render backend URL here]
-[Add your Streamlit Cloud URL here]
+* `scraper_v2.py` scrapes around 30–35 pages from the cars section.
+* To add more variety (and make the dataset less “perfect”), I also scraped bikes using `scraper_v3.py`.
+
+The idea was to work with messy, real-world data instead of a clean dataset, since that’s what most real systems deal with.
 
 ---
 
-## Author
+### Cleaning (`cleaner.py`)
 
+The raw scraped data was quite inconsistent:
+
+* Missing or incomplete fields
+* Prices in different formats (lakh, PKR, text)
+* Mixed language descriptions (English + Roman Urdu)
+
+The `cleaner.py` script processes this and produces a clean, structured dataset:
+
+* Standardizes important fields (price, year, km driven, etc.)
+* Removes broken or unusable entries
+* Outputs a consistent `clean_listings.json`
+
+This becomes the main dataset used by the system.
+
+---
+
+### Loading (`loader.py`)
+
+This is where the data is actually prepared for search.
+
+The loader does two things at the same time:
+
+#### 1. Store structured data in PostgreSQL
+
+Each listing is inserted into a PostgreSQL table with fields like:
+
+* title
+* price
+* city
+* year
+* fuel
+* transmission
+* description
+* url
+
+This allows traditional filtering like:
+
+* “under 20 lakh”
+* “in Lahore”
+* “automatic cars”
+
+---
+
+#### 2. Create embeddings and store in ChromaDB
+
+I added a field called `embedding_text`.
+
+Instead of embedding each column separately, I combine the key details of a listing into a short sentence-like format. This gives better semantic meaning compared to raw structured fields.
+
+That text is then converted into a vector using a sentence transformer model.
+
+* The vector → stored in ChromaDB
+* The original data → stored in PostgreSQL
+
+So each listing exists in two forms:
+
+* Structured (Postgres)
+* Semantic (ChromaDB)
+
+---
+
+## Backend (Core Logic)
+
+The backend is where everything connects together. It handles:
+
+* understanding the user query
+* retrieving relevant listings
+* generating a natural response
+
+---
+
+### API Layer (`main.py`)
+
+This is a FastAPI server that exposes the main endpoint:
 
 ```
+POST /ask
+```
+
+Flow:
+
+1. User sends a question
+2. Backend processes it
+3. Returns:
+
+   * generated answer
+   * top listings
+   * extracted filters
+
+It basically acts as the bridge between the frontend and the retrieval system.
+
+---
+
+### LLM Logic (`llm.py`)
+
+This file handles all interaction with the language model.
+
+There are two main tasks:
+
+#### 1. Extracting filters
+
+The model converts a natural query into structured filters.
+
+Example:
+
+```
+"car under 20 lakh in lahore"
+→ { "max_price": 2000000, "city": "Lahore" }
+```
+
+This allows the system to use SQL effectively instead of guessing.
+
+---
+
+#### 2. Generating answers
+
+After retrieval, the LLM:
+
+* looks at the top listings
+* writes a short, natural response
+* includes useful suggestions and links
+
+The goal here was to make it feel less like a search engine and more like someone helping you choose.
+
+---
+
+### Retrieval (`retriever.py`)
+
+This is the most important part of the system.
+
+Instead of relying only on keywords or only on vectors, I used a hybrid approach.
+
+#### Step 1 — SQL filtering
+
+Based on extracted filters, PostgreSQL is queried:
+
+* brand
+* city
+* price range
+* fuel type
+* etc.
+
+This narrows down the dataset.
+
+---
+
+#### Step 2 — Semantic search (ChromaDB)
+
+The user query is converted into an embedding and compared against stored vectors.
+
+This helps match intent, not just keywords.
+
+For example:
+
+* “family car”
+* “reliable car”
+* “fuel efficient”
+
+These don’t rely on exact matches in the database.
+
+---
+
+#### Step 3 — Combine results
+
+The system combines:
+
+* filtered results (Postgres)
+* semantic matches (Chroma)
+
+and returns the most relevant listings.
+
+---
+
+## Why this approach
+
+Using only SQL would make the system too rigid.
+Using only embeddings would ignore useful structured filters.
+
+Combining both gives:
+
+* precision (filters)
+* flexibility (semantic search)
+
+This is essentially a simple implementation of a Retrieval-Augmented Generation (RAG) system.
+
+---
+
+## Summary
+
+* Data is scraped from OLX
+* Cleaned into a usable dataset
+* Stored in PostgreSQL (structured)
+* Embedded and stored in ChromaDB (semantic)
+* Retrieved using a hybrid search approach
+* Passed to an LLM to generate a natural answer
+
+---
+
+
+
+
 
 ---
 
