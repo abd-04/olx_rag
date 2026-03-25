@@ -11,11 +11,16 @@ from selenium.webdriver.support import expected_conditions as EC
 
 from webdriver_manager.chrome import ChromeDriverManager
 
+options = webdriver.ChromeOptions()
+options.add_argument("--headless")
+options.add_argument("--no-sandbox")
+options.add_argument("--disable-dev-shm-usage")
+
 
 BASE_URL = "https://www.olx.com.pk/cars_c84"
 OUTPUT_FILE = "data/raw_listings.json"
 
-MAX_PAGES = 25
+MAX_PAGES = 35
 
 
 # ─────────────────────────────────────────────

@@ -9,3 +9,4 @@ venv/
 chroma_data/
 *.csv
 *.json
+chroma_data/

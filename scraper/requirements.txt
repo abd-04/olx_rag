@@ -1,0 +1,6 @@
+selenium
+webdriver-manager
+beautifulsoup4
+psycopg2-binary
+sentence-transformers
+chromadb
