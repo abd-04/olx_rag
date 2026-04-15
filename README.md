@@ -80,11 +80,8 @@ olx-rag-app/
     └── init.sql            # PostgreSQL schema
 ```
 
----
 
-Here’s a clean continuation of your README, keeping your tone but making it clearer, more structured, and natural to read. You can copy-paste this directly:
 
----
 
 ## What each file does:
 
