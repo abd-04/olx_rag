@@ -1,11 +1,4 @@
----
-title: OLX Vehicle Finder
-emoji: 🚗
-colorFrom: green
-colorTo: gray
-sdk: docker
-app_port: 7860
----
+
 
 # OLX Vehicle Finder
 
