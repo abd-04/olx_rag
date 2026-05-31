@@ -1,0 +1,17 @@
+[
+  {
+    "question": "family car under 30 lakh in Lahore",
+    "filters": {"vehicle_type": "car", "city": "Lahore", "max_price": 3000000},
+    "relevant_urls": []
+  },
+  {
+    "question": "125cc bike under 2 lakh",
+    "filters": {"vehicle_type": "bike", "engine_cc": "125", "max_price": 200000},
+    "relevant_urls": []
+  },
+  {
+    "question": "automatic petrol car in Karachi",
+    "filters": {"vehicle_type": "car", "city": "Karachi", "transmission": "Automatic", "fuel": "Petrol"},
+    "relevant_urls": []
+  }
+]

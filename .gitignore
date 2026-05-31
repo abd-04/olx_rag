@@ -1,0 +1,32 @@
+# Secrets: commit .env.example, never commit real credentials.
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+.venv/
+venv/
+
+# Frontend build artifacts
+frontend/node_modules/
+frontend/dist/
+
+# Local generated listing data
+scraper/data/*.json
+data/
+
+# Local Chroma index. The exported read-only Space snapshot is committed.
+scraper/chroma_data/
+!deploy/huggingface/chroma_data/
+!deploy/huggingface/chroma_data/**
+
+# Local tooling and OS files
+.DS_Store
+.pytest_cache/
+.coverage
+*.log
+*.csv

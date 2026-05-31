@@ -1,0 +1,7 @@
+selenium>=4.20,<5
+webdriver-manager>=4,<5
+beautifulsoup4>=4.12,<5
+psycopg2-binary>=2.9,<3
+sentence-transformers>=3,<6
+chromadb>=1,<2
+python-dotenv>=1,<2
