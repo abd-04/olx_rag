@@ -11,9 +11,9 @@ app_port: 7860
 
 ## Overview
 
-This is a RAG-based vehicle finder made using scraped OLX Pakistan listings. A user can search in normal language, for example `show family cars under 35 lakh in Lahore`, and the app returns relevant listings with their actual OLX links.
+This is a small RAG project I made using vehicle listings scraped from OLX Pakistan. The user can search in normal language, for example `show family cars under 35 lakh in Lahore`, and the app shows relevant listings with the original OLX links.
 
-I made this project to understand how RAG works when the data is not a set of long documents. In this case, every vehicle listing is already a small document. The system stores normal listing fields in PostgreSQL and embeddings in ChromaDB.
+I wanted to understand how a RAG app works from start to finish, including collecting the data, cleaning it, creating embeddings, retrieving the right listings and finally deploying the app.
 
 ## Main Technologies
 
@@ -23,30 +23,29 @@ I made this project to understand how RAG works when the data is not a set of lo
 | FastAPI | Backend API |
 | PostgreSQL | Listing details and exact filters |
 | ChromaDB | Embeddings for semantic search |
-| Sentence Transformers | Creates embeddings locally |
+| Sentence Transformers | Creates embeddings for semantic search |
 | Groq API | Extracts filters and writes the final answer |
-| Nginx | Serves React files and forwards API requests |
-| Docker | Packages the app for Hugging Face Spaces |
-| Neon | Hosts PostgreSQL for the deployed app |
+| Nginx | Serves the React page and forwards API requests |
+| Docker | Used for the deployed Hugging Face Space |
+| Neon | Hosts the PostgreSQL database online |
 
-## Improvements Made
+## Changes I Made
 
-The first version was closer to a simple vector search demo. I added a few things to make the RAG flow more complete:
+The first version was more basic. These are some of the changes I made while improving it:
 
-- Added PostgreSQL filters for fields such as price, city, year, fuel type and gearbox.
-- Added PostgreSQL full-text search along with Chroma semantic search.
-- Combined both rankings using reciprocal rank fusion.
-- Added a distance threshold so weak vector matches are not shown.
-- Used the same listing IDs in PostgreSQL and ChromaDB.
-- Updated the cleaner so listing text is more useful before embeddings are created.
-- Added a React frontend instead of keeping the basic Streamlit interface.
-- Added retrieval evaluation queries and cleaner tests.
-- Moved the deployed PostgreSQL database to Neon.
-- Packaged the public demo as one Hugging Face Docker Space.
+- I added filters for price, city, year, fuel type and gearbox.
+- I used both PostgreSQL text search and Chroma semantic search instead of relying on only one search method.
+- I combined the results using reciprocal rank fusion.
+- I used the same listing IDs in PostgreSQL and ChromaDB so the results can be linked correctly.
+- I improved the cleaning step before creating embeddings.
+- I replaced the first Streamlit UI with a React frontend.
+- I added a few tests and evaluation queries.
+- I moved PostgreSQL to Neon for the online version.
+- I deployed the frontend and backend together in one Docker Space on Hugging Face.
 
 ## Architecture
 
-These are four simple views of the system. They are based on the C4 style, with a sequence diagram added to make the search flow easier to explain.
+These diagrams show the main parts of the project and how a search request moves through them.
 
 ### 1. User Flow
 
@@ -90,7 +89,7 @@ sequenceDiagram
 
 ### 3. Local Docker Containers
 
-This was the local setup used while building and testing the project.
+This was the local setup I used while building the project.
 
 ```mermaid
 flowchart LR
@@ -104,11 +103,11 @@ flowchart LR
     ING --> CH
 ```
 
-Normally, three local containers run: frontend, backend and PostgreSQL. The ingestion container is only used when loading fresh data.
+Normally, I used three local containers: frontend, backend and PostgreSQL. The ingestion container was only needed when loading fresh data.
 
 ### 4. Deployed App
 
-The deployed version is smaller than the local setup. Neon hosts PostgreSQL separately. Hugging Face Spaces runs one Docker container for the frontend, backend and ChromaDB files.
+For the deployed version, Neon hosts PostgreSQL separately. Hugging Face Spaces runs one Docker container for the frontend, backend and ChromaDB files.
 
 ```mermaid
 flowchart LR
@@ -131,20 +130,34 @@ flowchart LR
 
 ## Where ChromaDB Is Stored
 
-PostgreSQL and ChromaDB are not the same database. PostgreSQL stores the readable listing details. ChromaDB stores the embedding vectors used for semantic search.
+PostgreSQL and ChromaDB are separate. PostgreSQL stores the listing details. ChromaDB stores the vectors used for semantic search.
 
-While working locally, ChromaDB is stored in:
+My local ChromaDB folder is:
 
 ```text
 scraper/chroma_data/
 ```
 
-For deployment, I copied the finished Chroma folder into:
+For deployment, a copy of that folder is stored in:
 
 ```text
 deploy/huggingface/chroma_data/
 ```
 
-This copied folder is the **Chroma snapshot**. Snapshot just means a saved copy of the vector database at that point in time. It is included in the Hugging Face Docker image, so the deployed backend can search embeddings without depending on my laptop.
+I called this copy a **Chroma snapshot**. It just means the saved Chroma files at the time of deployment. These files are added to the Hugging Face Docker image, so the online app does not need my laptop.
 
-The current snapshot contains 6 files and is about 2.94 MB. If listings are refreshed later, Neon must be updated and a new Chroma snapshot must be uploaded to the Space.
+The current copy contains 6 files and is about 2.94 MB. If I load new listings later, I also need to upload a new copy of these Chroma files.
+
+## What Is Inside The Hugging Face Space
+
+Only one Docker container is deployed on Hugging Face Spaces. It contains:
+
+- The React frontend build.
+- The FastAPI backend.
+- Nginx, which serves the React page and sends `/api` requests to FastAPI.
+- The Python packages needed by the backend.
+- The copied ChromaDB files.
+
+The Sentence Transformer package is installed in the container. The embedding model itself is downloaded when the backend needs it for the first semantic search and is then cached by the running Space.
+
+PostgreSQL is not inside this Docker container. It is hosted separately on Neon. The Groq model is also not inside the container because the backend calls the Groq API.
