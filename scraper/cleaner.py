@@ -48,7 +48,7 @@ def convert_price(listing, vehicle_type):
         extract_price_from_text(listing.get("price_text", ""))
         or extract_price_from_text(listing.get("description", ""))
     )
-    return recovered_price if recovered_price and recovered_price >= minimum_price else None
+    return recovered_price if recovered_price and minimum_price <= recovered_price <= 100000000 else None
 
 
 def extract_city(listing):

@@ -41,6 +41,14 @@ class CleanerTests(unittest.TestCase):
             "url": "https://www.olx.com.pk/item/example",
         }))
 
+    def test_rejects_implausibly_high_car_price(self):
+        self.assertIsNone(clean_listing({
+            "title": "Haval Jolion 2025",
+            "price_text": "Rs.797500000000",
+            "price_pkr": 797500000000,
+            "url": "https://www.olx.com.pk/item/example",
+        }))
+
 
 if __name__ == "__main__":
     unittest.main()
