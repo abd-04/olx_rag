@@ -11,311 +11,140 @@ app_port: 7860
 
 ## Overview
 
-This is a RAG-based vehicle search application built for OLX Pakistan listings. A user can write a natural-language request such as `show family cars under 35 lakh in Lahore`, and the system returns grounded recommendations with verified OLX links.
+This is a RAG-based vehicle finder made using scraped OLX Pakistan listings. A user can search in normal language, for example `show family cars under 35 lakh in Lahore`, and the app returns relevant listings with their actual OLX links.
 
-The project combines PostgreSQL filters, full-text search, Chroma vector search, reciprocal rank fusion, and a Groq-hosted LLM. The frontend is built with React and the backend is exposed through FastAPI.
+I made this project to understand how RAG works when the data is not a set of long documents. In this case, every vehicle listing is already a small document. The system stores normal listing fields in PostgreSQL and embeddings in ChromaDB.
 
-## Why did I make this effort?
+## Main Technologies
 
-Normal keyword search becomes limiting when a user describes intent instead of exact listing fields. For example, the user may ask for a comfortable family car without naming a model.
-
-My goal was to understand how a complete RAG system works beyond a basic vector search demo: scraping data, cleaning it, storing structured fields, generating embeddings, combining lexical and semantic retrieval, grounding the answer, evaluating retrieval, and deploying the final application.
-
-## Tech Stack
-
-| Technology | Purpose |
+| Technology | Use |
 |---|---|
-| React and Vite | Search interface |
-| Nginx | Serves the frontend and proxies API requests |
+| React | Frontend |
 | FastAPI | Backend API |
-| PostgreSQL | Structured listing data and full-text search |
-| ChromaDB | Persistent vector index |
-| Sentence Transformers | Local listing and query embeddings |
-| Groq API | Filter extraction and grounded answer generation |
-| Docker Compose | Local service orchestration |
-| Neon | Free hosted PostgreSQL database |
-| Hugging Face Spaces | Free Docker deployment for the demo |
+| PostgreSQL | Listing details and exact filters |
+| ChromaDB | Embeddings for semantic search |
+| Sentence Transformers | Creates embeddings locally |
+| Groq API | Extracts filters and writes the final answer |
+| Nginx | Serves React files and forwards API requests |
+| Docker | Packages the app for Hugging Face Spaces |
+| Neon | Hosts PostgreSQL for the deployed app |
+
+## Improvements Made
+
+The first version was closer to a simple vector search demo. I added a few things to make the RAG flow more complete:
+
+- Added PostgreSQL filters for fields such as price, city, year, fuel type and gearbox.
+- Added PostgreSQL full-text search along with Chroma semantic search.
+- Combined both rankings using reciprocal rank fusion.
+- Added a distance threshold so weak vector matches are not shown.
+- Used the same listing IDs in PostgreSQL and ChromaDB.
+- Updated the cleaner so listing text is more useful before embeddings are created.
+- Added a React frontend instead of keeping the basic Streamlit interface.
+- Added retrieval evaluation queries and cleaner tests.
+- Moved the deployed PostgreSQL database to Neon.
+- Packaged the public demo as one Hugging Face Docker Space.
 
 ## Architecture
 
-The diagrams below follow a C4-inspired structure. The context, container, and deployment views come from the C4 way of describing systems. The sequence diagram is added as a dynamic view because it is useful for explaining the request flow in an interview.
+These are four simple views of the system. They are based on the C4 style, with a sequence diagram added to make the search flow easier to explain.
 
-### 1. System Context and User Flow
-
-This first view shows what happens when a user searches from the application.
+### 1. User Flow
 
 ```mermaid
 flowchart LR
-    U[User] -->|Writes a vehicle request| UI[OLX Vehicle Finder]
-    UI -->|Sends question| API[Search API]
-    API -->|Extracts filters and generates answer| LLM[Groq LLM]
-    API -->|Structured and keyword retrieval| PG[(PostgreSQL Listings)]
-    API -->|Semantic retrieval| CH[(Chroma Vector Index)]
+    U[User] -->|Searches for a vehicle| UI[React Frontend]
+    UI -->|Sends question| API[FastAPI Backend]
+    API -->|Gets filters and final answer| LLM[Groq API]
+    API -->|Filters and keyword search| PG[(PostgreSQL)]
+    API -->|Semantic search| CH[(ChromaDB)]
     PG --> API
     CH --> API
-    API -->|Grounded answer and verified links| UI
-    UI -->|Displays recommendations| U
+    API -->|Answer and OLX links| UI
 ```
 
-### 2. Search Request Sequence
-
-This is the flow for one user request after the application is running.
+### 2. Search Sequence
 
 ```mermaid
 sequenceDiagram
     actor U as User
     participant R as React Frontend
     participant F as FastAPI Backend
-    participant G as Groq LLM
+    participant G as Groq API
     participant P as PostgreSQL
     participant C as ChromaDB
 
-    U->>R: Enter natural-language request
+    U->>R: Enter search request
     R->>F: POST /api/ask
-    F->>G: Extract explicit filters as JSON
-    G-->>F: Vehicle type, city, price, year and other filters
-    F->>P: Filter rows and run full-text search
-    P-->>F: Matching structured and lexical results
-    F->>C: Embed query and run semantic search
-    C-->>F: Similar listing IDs and distances
-    F->>F: Fuse rankings and remove weak matches
-    F->>G: Generate answer from retrieved listings only
-    G-->>F: Grounded recommendation
-    F-->>R: Answer, listings and verified URLs
-    R-->>U: Show ranked results
+    F->>G: Extract filters from question
+    G-->>F: Return filters as JSON
+    F->>P: Run filters and keyword search
+    P-->>F: Return matching listings
+    F->>C: Run semantic search
+    C-->>F: Return similar listing IDs
+    F->>F: Combine both rankings
+    F->>G: Generate answer using retrieved listings
+    G-->>F: Return grounded answer
+    F-->>R: Return answer and OLX links
+    R-->>U: Show results
 ```
 
-### 3. Local Container Diagram
+### 3. Local Docker Containers
 
-This C4 container view shows the services used while developing locally with Docker Compose.
+This was the local setup used while building and testing the project.
 
 ```mermaid
 flowchart LR
-    U[Browser] -->|localhost:3000| FE[Frontend Container<br/>React and Nginx]
-    FE -->|/api proxy| BE[Backend Container<br/>FastAPI]
-    BE -->|SQL queries| PG[(PostgreSQL Container<br/>Listings)]
-    BE -->|Vector queries| CH[(Mounted Chroma Data<br/>Embeddings)]
-    BE -->|LLM requests| G[Groq API]
+    U[Browser] --> FE[Frontend Container<br/>React and Nginx]
+    FE --> BE[Backend Container<br/>FastAPI]
+    BE --> PG[(PostgreSQL Container)]
+    BE --> CH[(Local Chroma Folder)]
+    BE --> G[Groq API]
 
-    ING[One-off Ingestion Container<br/>Cleaner and Loader] -->|Upsert rows| PG
-    ING -->|Upsert vectors with same IDs| CH
-    RAW[Scraped JSON Listings] --> ING
+    ING[Optional Ingestion Container<br/>Cleaner and Loader] --> PG
+    ING --> CH
 ```
 
-### 4. Free Deployment Diagram
+Normally, three local containers run: frontend, backend and PostgreSQL. The ingestion container is only used when loading fresh data.
 
-The deployed demo does not run four separate public containers. Hugging Face Spaces builds one Docker image containing Nginx, the React frontend, FastAPI, and a read-only Chroma snapshot. PostgreSQL is hosted separately on Neon.
+### 4. Deployed App
+
+The deployed version is smaller than the local setup. Neon hosts PostgreSQL separately. Hugging Face Spaces runs one Docker container for the frontend, backend and ChromaDB files.
 
 ```mermaid
 flowchart LR
-    U[Browser] -->|Public Space URL| HF[Hugging Face Docker Space]
+    U[Browser] --> HF[Hugging Face Space<br/>One Docker Container]
 
-    subgraph SPACE[Single Space Container]
-        NX[Nginx<br/>Port 7860]
-        RE[React Static Files]
+    subgraph APP[Inside the Space Container]
+        NX[Nginx]
+        UI[React Files]
         API[FastAPI Backend]
-        CH[(Bundled Chroma Snapshot)]
-        NX --> RE
-        NX -->|/api proxy| API
+        CH[(Chroma Snapshot)]
+        NX --> UI
+        NX -->|Forwards /api requests| API
         API --> CH
     end
 
     HF --> NX
-    API -->|DATABASE_URL| NEON[(Neon PostgreSQL)]
-    API -->|API key| GROQ[Groq API]
-
-    subgraph REFRESH[Local Data Refresh Workflow]
-        S[Scraper] --> CL[Cleaner]
-        CL --> LD[Loader]
-        LD -->|Update rows| NEON
-        LD --> LC[(Local Chroma Index)]
-        LC --> EX[Export Snapshot]
-        EX -->|Upload new Space version| HF
-    end
+    API --> NEON[(Neon PostgreSQL)]
+    API --> GROQ[Groq API]
 ```
 
-## How RAG Works In This Project
+## Where ChromaDB Is Stored
 
-Each vehicle listing is treated as one retrieval document. The cleaner converts messy scraped fields into consistent values and creates embedding text from useful listing information such as title, description, city, price, year, mileage, fuel type, and gearbox.
+PostgreSQL and ChromaDB are not the same database. PostgreSQL stores the readable listing details. ChromaDB stores the embedding vectors used for semantic search.
 
-The loader stores the same listing in two places:
-
-| Storage | What it contains | Why it is used |
-|---|---|---|
-| PostgreSQL | Normalized listing fields and URLs | Exact filters, full-text search and final listing details |
-| ChromaDB | Embedding vector, metadata and PostgreSQL listing ID | Semantic similarity search |
-
-At search time, the backend extracts only explicit filters from the user's question. It searches PostgreSQL and ChromaDB, combines the rankings using reciprocal rank fusion, rejects weak semantic matches using a distance threshold, and asks the LLM to answer only from the retrieved listings.
-
-## Project Structure
+While working locally, ChromaDB is stored in:
 
 ```text
-olx_rag-main/
-|-- backend/                 # FastAPI API, LLM prompts and retrieval logic
-|-- database/                # PostgreSQL schema and initialization SQL
-|-- deploy/huggingface/      # Space config and exported Chroma snapshot
-|-- evals/                   # Retrieval evaluation queries and runner
-|-- frontend/                # React application and local Nginx config
-|-- scraper/                 # Scrapers, cleaner and PostgreSQL/Chroma loader
-|-- tests/                   # Cleaner tests
-|-- .env.example             # Local configuration template
-|-- docker-compose.yml       # Local multi-container setup
-|-- Dockerfile               # Single-container Hugging Face deployment
-`-- README.md
+scraper/chroma_data/
 ```
 
-## Run Locally
+For deployment, I copied the finished Chroma folder into:
 
-### 1. Configure Environment
-
-Create your private `.env` file from the example:
-
-```powershell
-Copy-Item .env.example .env
+```text
+deploy/huggingface/chroma_data/
 ```
 
-Set `GROQ_API_KEY` in `.env`. Keep `.env` private and never commit it.
+This copied folder is the **Chroma snapshot**. Snapshot just means a saved copy of the vector database at that point in time. It is included in the Hugging Face Docker image, so the deployed backend can search embeddings without depending on my laptop.
 
-### 2. Start The Application
-
-Build and start PostgreSQL, the backend, and the frontend:
-
-```powershell
-docker compose up --build -d postgres backend frontend
-```
-
-Open:
-
-| Service | URL |
-|---|---|
-| React frontend | `http://localhost:3000` |
-| FastAPI Swagger docs | `http://localhost:8000/docs` |
-| FastAPI health check | `http://localhost:8000/health` |
-
-### 3. Stop The Application
-
-```powershell
-docker compose down
-```
-
-Your local PostgreSQL data remains in its Docker volume. Do not add `-v` unless you intentionally want to remove that database volume.
-
-## Refresh Listing Data
-
-The application can run from the existing dataset. Use this workflow only when you want to collect and load fresh listings.
-
-```powershell
-python scraper\scraper_v2.py
-python scraper\scraper_v3.py
-python scraper\cleaner.py
-python scraper\loader.py
-```
-
-The scrapers write JSON files under `scraper/data/`. The cleaner creates `clean_listings.json`. The loader upserts listings into PostgreSQL and writes embeddings to `scraper/chroma_data/`.
-
-For a fully Docker-based local ingestion run:
-
-```powershell
-docker compose --profile ingestion run --rm ingestion
-```
-
-Stop the backend before a manual loader run if it is using the same local Chroma directory. This avoids two processes writing to the persistent vector store at the same time.
-
-## Free Deployment
-
-The free demo deployment uses:
-
-| Platform | Responsibility |
-|---|---|
-| Neon | Hosted PostgreSQL listings database |
-| Hugging Face Spaces | Docker image, React UI, FastAPI backend and bundled Chroma snapshot |
-| Groq | Hosted LLM inference |
-
-### Update Neon And Chroma
-
-Place the Neon connection string in your private `.env` file as `DATABASE_URL`, then run:
-
-```powershell
-python scraper\loader.py
-.\deploy\huggingface\export_chroma.ps1
-```
-
-The first command updates Neon and the local vector store. The second command copies the current Chroma snapshot into `deploy/huggingface/chroma_data/` for the Space image.
-
-### Upload A New Space Version
-
-Add these secrets in the Hugging Face Space settings:
-
-| Secret | Value |
-|---|---|
-| `DATABASE_URL` | Neon PostgreSQL connection string |
-| `GROQ_API_KEY` | Groq API key |
-
-Upload the project:
-
-```powershell
-hf upload abd04/carFinder . . --repo-type space --commit-message "Deploy OLX vehicle finder"
-```
-
-For a documentation-only update, upload only this file:
-
-```powershell
-hf upload abd04/carFinder README.md README.md --repo-type space --commit-message "Update README"
-```
-
-The Space may need a short cold start before the first search works.
-
-## Environment Variables
-
-| Variable | Used for |
-|---|---|
-| `POSTGRES_USER` | Local PostgreSQL username |
-| `POSTGRES_PASSWORD` | Local PostgreSQL password |
-| `POSTGRES_DB` | Local database name |
-| `POSTGRES_HOST` | Local database host |
-| `POSTGRES_PORT` | Local database port |
-| `POSTGRES_HOST_PORT` | PostgreSQL port exposed by Docker |
-| `DATABASE_URL` | Cloud Neon connection string |
-| `GROQ_API_KEY` | Groq authentication |
-| `GROQ_MODEL` | Groq model name |
-| `MAX_VECTOR_DISTANCE` | Threshold for rejecting weak vector matches |
-| `CHROMA_PATH` | Persistent Chroma directory inside a container |
-
-## API Endpoints
-
-| Method | Endpoint | Description |
-|---|---|---|
-| `GET` | `/health` | Checks whether the backend is running |
-| `POST` | `/ask` | Runs full retrieval and returns a grounded answer |
-| `POST` | `/search` | Returns retrieval results for debugging and evaluation |
-
-The React frontend calls `/api/ask`. Nginx removes the `/api` prefix when proxying the request to FastAPI.
-
-## Evaluation And Tests
-
-Run the cleaner tests:
-
-```powershell
-python -m unittest discover -s tests
-```
-
-Run retrieval evaluation while the backend is available:
-
-```powershell
-python evals\run_retrieval_eval.py
-```
-
-The evaluation runner uses the `/search` endpoint and the sample queries in `evals/queries.json`.
-
-## Interview Explanation
-
-A concise explanation of the project is:
-
-> I built a hybrid RAG vehicle finder over scraped OLX listings. PostgreSQL handles exact filters and lexical search, while Chroma handles semantic search over listing embeddings. Both stores use the same listing IDs, so the backend can fuse the rankings and fetch verified listing details. A Groq-hosted LLM extracts explicit filters and generates an answer only from retrieved records. Locally, the services run with Docker Compose. For the free public demo, Neon hosts PostgreSQL and a Hugging Face Docker Space runs the React frontend, FastAPI backend, and a bundled Chroma snapshot.
-
-## Current Limitations
-
-- The public Chroma index is a snapshot, so refreshing cloud data requires re-exporting and uploading the Space.
-- Scraped OLX listings can expire or change after collection.
-- The demo uses a local embedding model inside the backend image, which increases image size and cold-start time.
-- This is a portfolio project, not a production marketplace service.
+The current snapshot contains 6 files and is about 2.94 MB. If listings are refreshed later, Neon must be updated and a new Chroma snapshot must be uploaded to the Space.
